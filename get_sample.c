@@ -3,9 +3,10 @@
 #include <time.h>
 #include <errno.h>
 /* Shared memory implementation */
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include "collect_data.h"
 
 void print_values(struct filtered_data filteredData){
@@ -38,30 +39,44 @@ void main(int argc, char* argv[])
 {
     int i, j;
 
-    struct filtered_data* data_ptr = (struct filtered_data*) NULL;
     struct filtered_data filteredData;
+    struct shared* data_ptr = (struct shared*) NULL;
 
     int shmid;
-    size_t filteredData_size = sizeof(struct filtered_data);    
     
-    /* Generate key for sharing filteredData */
-    errno = 0;
-    key_t key = ftok(OUTPUT_FILE, 'R');
-    if(key == -1) {perror("ftok"); return;}
-    
-    /* create a shared memory (no create) */
-    if((shmid = shmget(key, filteredData_size, 0644)) == -1)
-    {perror("shmget"); return;}
+    /* create a shared memory (CANNOT CREATE)*/
+    if((shmid = shm_open(SHARED_RESOURCE, O_RDWR , 0600)) == -1)
+    {perror("shm_open"); return;}
+    ftruncate(shmid, sizeof(struct shared));
 
-    /* attach to the shared memory, (READ ONLY) */
-    data_ptr = (struct filtered_data*) shmat(shmid, (void*) 0, SHM_RDONLY);
-    if(data_ptr == (struct filtered_data*) (-1)) {perror("shmat"); return;}
+    /* attach to the shared memory (CAN READ ONLY)*/
+    data_ptr = (struct shared *) mmap(0, sizeof(struct shared),
+                PROT_READ | PROT_WRITE, MAP_SHARED, shmid, 0);
+    if(data_ptr == (struct shared*) (-1)) {perror("mmap"); return;}
 
-    /* copy from shared memory so that another process can read it */
-    memcpy(&filteredData, data_ptr, filteredData_size);
-           
-    /* detach from the shared memory segment */
-    if(shmdt(data_ptr) == -1) {perror("shmdt"); return;} 
-    
+    /*******************************************
+    *  CRITICAL SECTION BEGINS
+    ********************************************/
+    /* acquire MUTEX for critical section */
+    pthread_mutex_lock(&(data_ptr->mutex));
+
+     /* assign timing info from shared resource */
+    filteredData.sec_elapsed = data_ptr->filteredData.sec_elapsed;
+    filteredData.ms_elapsed = data_ptr->filteredData.ms_elapsed;
+    filteredData.us_elapsed = data_ptr->filteredData.us_elapsed;
+    for (j = 0; j < 4; j++)
+    {
+        /* assign filtered channel values from shared resource */
+        filteredData.channels[j] = data_ptr->filteredData.channels[j]; 
+    }
+    /* release MUTEX on exiting critical section */
+    pthread_mutex_unlock(&(data_ptr->mutex));
+    /*******************************************
+    *  CRITICAL SECTION ENDS
+    ********************************************/
+
+    /* detach the shared memory */
+    if(munmap(data_ptr, sizeof(struct shared*)) == -1) {perror("munmap"); return;} 
+
     print_values(filteredData);
 }
