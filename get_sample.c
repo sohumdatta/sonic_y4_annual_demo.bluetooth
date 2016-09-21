@@ -16,19 +16,26 @@ void print_values(struct filtered_data filteredData){
     int ms_elapsed;
     int us_elapsed;
     double  filtered_channel[4];
+    double  channel[4];	/* the raw channel values */
 
 
     /* assign the values */
     sec_elapsed = filteredData.sec_elapsed;
     ms_elapsed = filteredData.ms_elapsed;
     us_elapsed = filteredData.us_elapsed;
+
     for(i=0; i < 4; i++) filtered_channel[i] = filteredData.channels[i];
+    for(i=0; i < 4; i++) channel[i] = filteredData.raw_channels[i];
 
     /* print values */
-    printf("%ld,%d,%d,%f,%f,%f,%f\n",
+    printf("%ld,%d,%d, raw:%f,%f,%f,%f filtered:%f,%f,%f,%f\n",
                sec_elapsed,
                ms_elapsed,
                us_elapsed,
+               channel[0],
+               channel[1],
+               channel[2],
+               channel[3],
                filtered_channel[0],
                filtered_channel[1],
                filtered_channel[2],
@@ -47,7 +54,7 @@ void main(int argc, char* argv[])
     /* create a shared memory (CANNOT CREATE)*/
     if((shmid = shm_open(SHARED_RESOURCE, O_RDWR , 0600)) == -1)
     {perror("shm_open"); return;}
-    ftruncate(shmid, sizeof(struct shared));
+    /* ftruncate(shmid, sizeof(struct shared)); */ /* TODO: Ensure this should be commented */
 
     /* attach to the shared memory (CAN READ ONLY)*/
     data_ptr = (struct shared *) mmap(0, sizeof(struct shared),
@@ -68,6 +75,7 @@ void main(int argc, char* argv[])
     {
         /* assign filtered channel values from shared resource */
         filteredData.channels[j] = data_ptr->filteredData.channels[j]; 
+        filteredData.raw_channels[j] = data_ptr->filteredData.raw_channels[j]; 
     }
     /* release MUTEX on exiting critical section */
     pthread_mutex_unlock(&(data_ptr->mutex));
