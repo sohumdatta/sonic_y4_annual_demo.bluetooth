@@ -16,7 +16,7 @@ void print_values(struct filtered_data filteredData){
     int ms_elapsed;
     int us_elapsed;
     double  filtered_channel[4];
-    double  channel[4];	/* the raw channel values */
+    double  raw_channel[4];	/* the raw channel values */
 
 
     /* assign the values */
@@ -25,17 +25,17 @@ void print_values(struct filtered_data filteredData){
     us_elapsed = filteredData.us_elapsed;
 
     for(i=0; i < 4; i++) filtered_channel[i] = filteredData.channels[i];
-    for(i=0; i < 4; i++) channel[i] = filteredData.raw_channels[i];
+    for(i=0; i < 4; i++) raw_channel[i] = filteredData.raw_channels[i];
 
     /* print values */
     printf("%ld,%d,%d, raw:%f,%f,%f,%f filtered:%f,%f,%f,%f\n",
                sec_elapsed,
                ms_elapsed,
                us_elapsed,
-               channel[0],
-               channel[1],
-               channel[2],
-               channel[3],
+               raw_channel[0],
+               raw_channel[1],
+               raw_channel[2],
+               raw_channel[3],
                filtered_channel[0],
                filtered_channel[1],
                filtered_channel[2],

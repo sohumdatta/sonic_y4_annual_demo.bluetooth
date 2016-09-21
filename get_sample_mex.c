@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include "collect_data.h"
 
-int get_sample(long* sec_elapsed, int* ms_elapsed, int* us_elapsed, double* filtered_channel)
+int get_sample(long* sec_elapsed, int* ms_elapsed, int* us_elapsed, double* filtered_channel, double* raw_channel)
 {
     int i, j;
 
@@ -49,6 +49,7 @@ int get_sample(long* sec_elapsed, int* ms_elapsed, int* us_elapsed, double* filt
     {
         /* assign filtered channel values from shared resource */
         filteredData.channels[j] = data_ptr->filteredData.channels[j]; 
+        filteredData.raw_channels[j] = data_ptr->filteredData.raw_channels[j]; 
     }
     /* release MUTEX on exiting critical section */
     pthread_mutex_unlock(&(data_ptr->mutex));
@@ -64,7 +65,9 @@ int get_sample(long* sec_elapsed, int* ms_elapsed, int* us_elapsed, double* filt
     *sec_elapsed = filteredData.sec_elapsed;
     *ms_elapsed = filteredData.ms_elapsed;
     *us_elapsed = filteredData.us_elapsed;
+
     for(i=0; i < 4; i++) filtered_channel[i] = filteredData.channels[i];
+    for(i=0; i < 4; i++) raw_channel[i] = filteredData.raw_channels[i];
 
     return 0;
 }
@@ -82,12 +85,14 @@ void mexFunction( int nlhs, mxArray *plhs[],
     int* ms_elapsed;
     int* us_elapsed;
     double  * filtered_channel;
+    double  * raw_channel;
 
     /* check for the proper number of arguments */
+	/* sec_elapsed, ms_elapsed, us_elapsed, filtered_channel[4], raw_channel[4] */
     if(nrhs > 0)
       mexErrMsgIdAndTxt( "MATLAB:get_sample:invalidNumInputs",
               "No inputs required.");
-    if(nlhs != 4)
+    if(nlhs != 5)
       mexErrMsgIdAndTxt( "MATLAB:get_sample:maxlhs",
               "4 output arguments required: sec, ms, usec, filtered_channel");
   
@@ -110,8 +115,13 @@ void mexFunction( int nlhs, mxArray *plhs[],
     filtered_channel = mxGetPr(plhs[3]);
     if(filtered_channel == NULL) mexErrMsgIdAndTxt("MATLAB:get_sample:NULL_return_vector", "filtered_channel Null vector sent");
 
+    plhs[4] = mxCreateDoubleMatrix( (mwSize)rows, (mwSize)cols, mxREAL);
+    raw_channel = mxGetPr(plhs[4]);
+    if(raw_channel == NULL) mexErrMsgIdAndTxt("MATLAB:get_sample:NULL_return_vector", "raw_channel Null vector sent");
+
     /* call the C subroutine */
-    return_val = get_sample(sec_elapsed, ms_elapsed, us_elapsed, filtered_channel);
+    /* call the C subroutine */
+    return_val = get_sample(sec_elapsed, ms_elapsed, us_elapsed, filtered_channel, raw_channel);
     if(return_val < 0) mexErrMsgIdAndTxt("MATLAB:get_sample:return_val", "get_sample_C_failed");
 
     /* assign the values */
